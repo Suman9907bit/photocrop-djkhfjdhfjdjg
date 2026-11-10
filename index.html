@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>JOS Smart Document Crop & Print</title>
+<style>
+:root{--teal:#087f8c;--deep:#075b66;--bg:#eef5f6;--ink:#18343a;--muted:#60777c}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);font-family:Arial,"Noto Sans Bengali",sans-serif;color:var(--ink)}
+header{background:linear-gradient(120deg,#075b66,#0b9aa5);color:white;padding:20px 16px;text-align:center}
+header h1{font-size:22px;margin:0 0 6px}header p{margin:0;font-size:13px;opacity:.9}
+.wrap{max-width:1100px;margin:18px auto;padding:0 12px 35px}
+.panel{background:white;border-radius:16px;padding:16px;margin:14px 0;box-shadow:0 5px 22px #164c5612}
+h2{font-size:17px;margin:0 0 13px;color:var(--deep)}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+label{font-size:13px;font-weight:700;color:#35545a}
+select,input[type=file],input[type=number]{padding:10px;border:1px solid #cbdadd;border-radius:9px;background:#fff;max-width:100%}
+button{border:0;border-radius:10px;padding:11px 15px;font-weight:700;cursor:pointer;background:var(--teal);color:#fff}
+button.secondary{background:#e4f1f2;color:var(--deep)}button.dark{background:#24444a}button:disabled{opacity:.45;cursor:not-allowed}
+.help{font-size:12px;color:var(--muted);line-height:1.5;margin:9px 0 0}
+.uploadgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
+.uploadbox{border:1.5px dashed #9dbcc1;border-radius:12px;padding:13px;background:#f8fbfb}
+.uploadbox h3{font-size:14px;margin:0 0 9px}
+.previewgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}
+.stage{background:#f2f6f6;border-radius:12px;padding:10px;min-width:0}
+.stage h3{font-size:14px;margin:0 0 8px}
+canvas{display:block;width:100%;max-height:440px;object-fit:contain;background:#dce5e6;border-radius:8px;touch-action:none}
+.status{font-size:12px;color:var(--muted);margin:8px 0;min-height:18px}
+.controls{display:flex;gap:8px;flex-wrap:wrap;margin-top:9px}
+.hidden{display:none!important}
+.notice{background:#fff8e7;border-left:4px solid #e6a52c;padding:10px;border-radius:8px;font-size:12px;line-height:1.5}
+footer{text-align:center;color:#6b8185;font-size:11px;padding:10px}
+@media(max-width:600px){header h1{font-size:19px}.panel{padding:12px}.row>*{flex:1 1 140px}button{padding:10px}}
+</style>
+</head>
+<body>
+<header><h1>JOS Smart Document Crop & Print</h1><p>Automatic document detection • Manual corner correction • Single / Front & Back</p></header>
+<main class="wrap">
+<section class="panel">
+<h2>১. ডকুমেন্টের ধরন নির্বাচন করুন</h2>
+<div class="row">
+<label>মোড
+<select id="mode"><option value="single">Single Document</option><option value="dual">Dual Document (Front + Back)</option></select></label>
+<label>প্রিন্ট পেপার
+<select id="paper"><option value="A4">A4</option><option value="A5">A5</option><option value="Letter">Letter</option></select></label>
+<label>ডকুমেন্ট ফিট
+<select id="fit"><option value="contain">Fit (পুরোটা দেখা যাবে)</option><option value="fill">Fill (জায়গা পূরণ)</option></select></label>
+</div>
+<p class="help">ছবিতে ডকুমেন্টটি যতটা সম্ভব পরিষ্কার, পুরো চার কোণসহ রাখুন। Dual মোডে Front ও Back আলাদা ছবি দিন।</p>
+</section>
+
+<section class="panel">
+<h2>২. ছবি আপলোড করুন</h2>
+<div class="uploadgrid">
+<div class="uploadbox"><h3>Single / Front ছবি</h3><input id="frontFile" type="file" accept="image/*" capture="environment"><p class="help">সামনের দিকের ছবি নির্বাচন করুন।</p></div>
+<div class="uploadbox hidden" id="backBox"><h3>Back ছবি</h3><input id="backFile" type="file" accept="image/*" capture="environment"><p class="help">পেছনের দিকের ছবি নির্বাচন করুন।</p></div>
+</div>
+<div class="controls"><button id="autoBtn" disabled>Automatic Crop</button><button class="secondary" id="manualBtn" disabled>Manual Corner Select</button><button class="secondary" id="resetBtn" disabled>Reset</button></div>
+<p class="help">Automatic Crop কাজ না করলে Manual Corner Select চাপুন, তারপর ছবির চার কোণের গোল পয়েন্ট টেনে ডকুমেন্টের কোণে বসান।</p>
+</section>
+
+<section class="panel">
+<h2>৩. Crop Preview ও সংশোধন</h2>
+<div class="previewgrid">
+<div class="stage" id="frontStage"><h3 id="frontTitle">Front / Document</h3><canvas id="frontCanvas" width="900" height="600"></canvas><div class="status" id="frontStatus">এখনও ছবি আপলোড করা হয়নি।</div><div class="controls"><button class="secondary" id="frontManual" disabled>চার কোণ ঠিক করুন</button><button class="secondary" id="frontRotate" disabled>Rotate 90°</button></div></div>
+<div class="stage hidden" id="backStage"><h3>Back</h3><canvas id="backCanvas" width="900" height="600"></canvas><div class="status" id="backStatus">Back ছবি আপলোড করুন।</div><div class="controls"><button class="secondary" id="backManual" disabled>চার কোণ ঠিক করুন</button><button class="secondary" id="backRotate" disabled>Rotate 90°</button></div></div>
+</div>
+<div class="notice" style="margin-top:13px">Manual নির্বাচন: চারটি পয়েন্ট যথাক্রমে উপর-বাম, উপর-ডান, নিচ-ডান, নিচ-বাম কোণে বসান। Crop সম্পন্ন হলে Preview-তে ফলাফল দেখাবে।</div>
+</section>
+
+<section class="panel">
+<h2>৪. প্রিন্ট সেটিংস</h2>
+<div class="row">
+<label>প্রতি পাতায় বিন্যাস
+<select id="layout"><option value="one">এক পাতায় একটি ডকুমেন্ট</option><option value="two">এক পাতায় Front + Back (উপর-নিচ)</option><option value="side">এক পাতায় Front + Back (পাশাপাশি)</option></select></label>
+<label>মার্জিন (mm)<input id="margin" type="number" min="0" max="30" value="8" style="width:85px"></label>
+</div>
+<div class="controls"><button id="printBtn" disabled>Print / PDF তৈরি করুন</button><button class="dark" id="clearBtn">সব Reset</button></div>
+<p class="help">Print চাপলে আলাদা about:blank প্রিন্ট পেজ খুলবে। সেখান থেকে Printer অথবা Save as PDF নির্বাচন করুন।</p>
+</section>
+</main>
+<footer>Jana Online Service • JOS Smart Tools</footer>
+<script async src="https://docs.opencv.org/4.x/opencv.js" onload="window.cvReady=true"></script>
+<script>
+const $=id=>document.getElementById(id);
+const state={front:null,back:null,frontCrop:null,backCrop:null,frontCorners:null,backCorners:null,active:null,manual:false,drag:-1};
+function setMode(){const dual=$('mode').value==='dual';$('backBox').classList.toggle('hidden',!dual);$('backStage').classList.toggle('hidden',!dual);$('frontTitle').textContent=dual?'Front':'Document';$('layout').disabled=!dual;if(!dual) $('layout').value='one';updatePrint();}
+$('mode').addEventListener('change',setMode);
+function loadFile(file,side){if(!file)return;if(!file.type.startsWith('image/')){alert('অনুগ্রহ করে একটি ছবি নির্বাচন করুন।');return}const img=new Image();img.onload=()=>{state[side]=img;state[side+'Crop']=null;const c=initialCorners(img);state[side+'Corners']=c;drawSource(side);$(side+'Status').textContent='ছবি প্রস্তুত। Automatic Crop অথবা Manual Corner Select করুন।';$(side+'Manual').disabled=false;$(side+'Rotate').disabled=false;$('autoBtn').disabled=false;$('manualBtn').disabled=false;$('resetBtn').disabled=false;updatePrint();URL.revokeObjectURL(img.src)};img.src=URL.createObjectURL(file)}
+$('frontFile').addEventListener('change',e=>loadFile(e.target.files[0],'front'));
+$('backFile').addEventListener('change',e=>loadFile(e.target.files[0],'back'));
+function initialCorners(img){return [{x:0,y:0},{x:img.naturalWidth,y:0},{x:img.naturalWidth,y:img.naturalHeight},{x:0,y:img.naturalHeight}]}
+function canvasFor(side){return $(side+'Canvas')}
+function drawSource(side){const img=state[side],c=canvasFor(side);if(!img)return;const ctx=c.getContext('2d');const scale=Math.min(c.width/img.width,c.height/img.height);const w=img.width*scale,h=img.height*scale;c.dataset.scale=scale;c.dataset.ox=(c.width-w)/2;c.dataset.oy=(c.height-h)/2;ctx.clearRect(0,0,c.width,c.height);ctx.fillStyle='#dce5e6';ctx.fillRect(0,0,c.width,c.height);ctx.drawImage(img,+c.dataset.ox,+c.dataset.oy,w,h);if(state.manual&&state.active===side)drawHandles(side)}
+function drawHandles(side){const c=canvasFor(side),ctx=c.getContext('2d'),s=+c.dataset.scale,ox=+c.dataset.ox,oy=+c.dataset.oy,pts=state[side+'Corners'];if(!pts)return;ctx.strokeStyle='#00a6a6';ctx.lineWidth=4;ctx.beginPath();pts.forEach((p,i)=>{const x=ox+p.x*s,y=oy+p.y*s;i?ctx.lineTo(x,y):ctx.moveTo(x,y)});ctx.closePath();ctx.stroke();pts.forEach(p=>{ctx.beginPath();ctx.arc(ox+p.x*s,oy+p.y*s,13,0,Math.PI*2);ctx.fillStyle='#fff';ctx.fill();ctx.lineWidth=4;ctx.strokeStyle='#007d86';ctx.stroke()})}
+function showCrop(side){const img=state[side],out=state[side+'Crop'];if(!img)return;const c=canvasFor(side),ctx=c.getContext('2d');ctx.clearRect(0,0,c.width,c.height);ctx.fillStyle='#dce5e6';ctx.fillRect(0,0,c.width,c.height);if(out){const sc=Math.min(c.width/out.width,c.height/out.height);const w=out.width*sc,h=out.height*sc;ctx.drawImage(out,(c.width-w)/2,(c.height-h)/2,w,h)}else drawSource(side)}
+function detectCorners(img){if(!window.cv||!cv.Mat)return null;let src,gray,blur,edge,contours,hier,approx;try{src=cv.imread(img);gray=new cv.Mat();blur=new cv.Mat();edge=new cv.Mat();contours=new cv.MatVector();hier=new cv.Mat();cv.cvtColor(src,gray,cv.COLOR_RGBA2GRAY);cv.GaussianBlur(gray,blur,new cv.Size(5,5),0);cv.Canny(blur,edge,50,150);cv.findContours(edge,contours,hier,cv.RETR_LIST,cv.CHAIN_APPROX_SIMPLE);let best=null,bestArea=0;for(let i=0;i<contours.size();i++){let cnt=contours.get(i),peri=cv.arcLength(cnt,true);approx=new cv.Mat();cv.approxPolyDP(cnt,approx,.02*peri,true);if(approx.rows===4){let area=Math.abs(cv.contourArea(approx));if(area>bestArea){bestArea=area;best=[];for(let j=0;j<4;j++)best.push({x:approx.intAt(j,0),y:approx.intAt(j,1)})}}cnt.delete();approx.delete()}if(best&&bestArea>img.width*img.height*.08)return orderPoints(best);return null}catch(e){return null}finally{[src,gray,blur,edge,contours,hier,approx].forEach(x=>{try{x&&x.delete()}catch(e){}})}}
+function orderPoints(p){const sum=p.map(v=>v.x+v.y),dif=p.map(v=>v.x-v.y);return [p[sum.indexOf(Math.min(...sum))],p[dif.indexOf(Math.max(...dif))],p[sum.indexOf(Math.max(...sum))],p[dif.indexOf(Math.min(...dif))]]}
+function perspectiveCrop(img,pts){const tl=pts[0],tr=pts[1],br=pts[2],bl=pts[3];const w=Math.max(Math.hypot(br.x-bl.x,br.y-bl.y),Math.hypot(tr.x-tl.x,tr.y-tl.y));const h=Math.max(Math.hypot(tr.x-br.x,tr.y-br.y),Math.hypot(tl.x-bl.x,tl.y-bl.y));const out=document.createElement('canvas');out.width=Math.max(1,Math.round(w));out.height=Math.max(1,Math.round(h));const ctx=out.getContext('2d');ctx.save();ctx.beginPath();ctx.moveTo(tl.x,tl.y);ctx.lineTo(tr.x,tr.y);ctx.lineTo(br.x,br.y);ctx.lineTo(bl.x,bl.y);ctx.closePath();ctx.clip();ctx.setTransform(out.width/(tr.x-tl.x||1),0,0,out.height/(bl.y-tl.y||1),-tl.x*out.width/(tr.x-tl.x||1),-tl.y*out.height/(bl.y-tl.y||1));ctx.drawImage(img,0,0);ctx.restore();return out}
+function cropSide(side,auto){const img=state[side];if(!img)return false;let pts=state[side+'Corners'];if(auto){const found=detectCorners(img);if(found){pts=found;state[side+'Corners']=found;$(side+'Status').textContent='Document edge শনাক্ত হয়েছে। প্রয়োজনে Manual-এ ঠিক করুন।'}else{$(side+'Status').textContent='স্বয়ংক্রিয়ভাবে চার কোণ নিশ্চিত করা যায়নি—Manual Corner Select করুন।';state[side+'Crop']=null;showCrop(side);return false}}state[side+'Crop']=perspectiveCrop(img,pts);state.manual=false;showCrop(side);if(!auto)$(side+'Status').textContent='Manual crop সম্পন্ন।';updatePrint();return true}
+$('autoBtn').onclick=()=>{if(!window.cv||!cv.Mat){alert('Auto detection engine লোড হচ্ছে। কয়েক সেকেন্ড পরে আবার চেষ্টা করুন।');return}let ok=cropSide('front',true);if($('mode').value==='dual'&&state.back)ok=cropSide('back',true)&&ok;updatePrint();if(!ok)alert('কোনো ছবির চার কোণ Auto detect হয়নি। Manual Corner Select দিয়ে ঠিক করুন।')};
+function startManual(side){if(!state[side])return;state.active=side;state.manual=true;state[side+'Crop']=null;drawSource(side);$(side+'Status').textContent='চারটি গোল পয়েন্ট ডকুমেন্টের কোণে টেনে বসান, তারপর নিচের Apply Manual Crop চাপুন।';let btn=$('manualApply');if(!btn){btn=document.createElement('button');btn.id='manualApply';btn.textContent='Apply Manual Crop';btn.onclick=()=>{if(state.active){cropSide(state.active,false);state.manual=false;state.active=null;btn.remove()}};document.querySelector('#frontStage').appendChild(btn)}}
+$('manualBtn').onclick=()=>startManual('front');$('frontManual').onclick=()=>startManual('front');$('backManual').onclick=()=>startManual('back');
+['front','back'].forEach(side=>{const c=canvasFor(side);c.addEventListener('pointerdown',e=>{if(!state.manual||state.active!==side)return;const r=c.getBoundingClientRect(),x=(e.clientX-r.left)*c.width/r.width,y=(e.clientY-r.top)*c.height/r.height,s=+c.dataset.scale,ox=+c.dataset.ox,oy=+c.dataset.oy;let pts=state[side+'Corners'];let best=Infinity,idx=-1;pts.forEach((p,i)=>{let d=Math.hypot(ox+p.x*s-x,oy+p.y*s-y);if(d<best){best=d;idx=i}});if(best<55){state.drag=idx;c.setPointerCapture(e.pointerId)}});c.addEventListener('pointermove',e=>{if(state.drag<0||state.active!==side)return;const r=c.getBoundingClientRect(),s=+c.dataset.scale,ox=+c.dataset.ox,oy=+c.dataset.oy;state[side+'Corners'][state.drag]={x:Math.max(0,Math.min(state[side].width,(e.clientX-r.left)*c.width/r.width-ox)/s),y:Math.max(0,Math.min(state[side].height,(e.clientY-r.top)*c.height/r.height-oy)/s)};drawSource(side)});c.addEventListener('pointerup',()=>state.drag=-1)});
+function rotate(side){const img=state[side];if(!img)return;const cv=document.createElement('canvas');cv.width=img.height;cv.height=img.width;const x=cv.getContext('2d');x.translate(cv.width/2,cv.height/2);x.rotate(Math.PI/2);x.drawImage(img,-img.width/2,-img.height/2);const n=new Image();n.onload=()=>{state[side]=n;state[side+'Corners']=initialCorners(n);state[side+'Crop']=null;drawSource(side);$(side+'Status').textContent='ছবি Rotate করা হয়েছে। আবার crop করুন।';updatePrint()};n.src=cv.toDataURL('image/jpeg',.95)}
+$('frontRotate').onclick=()=>rotate('front');$('backRotate').onclick=()=>rotate('back');
+$('resetBtn').onclick=()=>['front','back'].forEach(s=>{state[s+'Crop']=null;if(state[s]){state[s+'Corners']=initialCorners(state[s]);drawSource(s);$(s+'Status').textContent='Crop reset হয়েছে।'}updatePrint()});
+function updatePrint(){const ready=!!state.frontCrop&&($('mode').value!=='dual'||!!state.backCrop);$('printBtn').disabled=!ready}
+function printPage(){const dual=$('mode').value==='dual',layout=$('layout').value,paper=$('paper').value,margin=Math.max(0,Math.min(30,+$('margin').value||0)),fit=$('fit').value;const front=state.frontCrop.toDataURL('image/jpeg',.96),back=dual?state.backCrop.toDataURL('image/jpeg',.96):'';const win=window.open('about:blank','_blank');if(!win){alert('Print page খুলতে Popup অনুমতি দিন।');return}const imgs=dual?[front,back]:[front];let cssLayout=layout==='side'?'grid-template-columns:1fr 1fr;grid-template-rows:1fr':layout==='two'?'grid-template-columns:1fr;grid-template-rows:1fr 1fr':'grid-template-columns:1fr;grid-template-rows:1fr';win.document.open();win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>JOS Document Print</title><style>@page{size:${paper};margin:${margin}mm}*{box-sizing:border-box}html,body{margin:0;padding:0;width:100%;height:100%;font-family:Arial}.sheet{width:100%;height:100%;display:grid;${cssLayout};gap:5mm;break-inside:avoid}.item{min-width:0;min-height:0;display:flex;align-items:center;justify-content:center;overflow:hidden}.item img{display:block;max-width:100%;max-height:100%;width:100%;height:100%;object-fit:${fit==='fill'?'cover':'contain'}}@media screen{body{padding:12px;background:#eee}.sheet{background:white;min-height:90vh;padding:10mm;box-shadow:0 2px 12px #999}.toolbar{position:sticky;top:0;background:#075b66;color:white;padding:10px;text-align:center;margin:-12px -12px 12px}.toolbar button{padding:10px 20px;border:0;border-radius:8px;font-weight:bold}}</style></head><body><div class="toolbar"><button onclick="window.print()">Print / Save as PDF</button> <button onclick="window.close()">Close</button></div><main class="sheet">${imgs.map(src=>`<div class="item"><img src="${src}"></div>`).join('')}</main><script>window.onload=()=>setTimeout(()=>{document.title='JOS Document Print - Ready'},300);<\/script></body></html>`);win.document.close()}
+$('printBtn').onclick=printPage;
+$('clearBtn').onclick=()=>{if(!confirm('সব ছবি ও crop মুছে ফেলবেন?'))return;['front','back'].forEach(s=>{state[s]=state[s+'Crop']=state[s+'Corners']=null;const c=canvasFor(s);c.getContext('2d').clearRect(0,0,c.width,c.height);$(s+'Status').textContent='এখনও ছবি আপলোড করা হয়নি।';$(s+'File').value='';$(s+'Manual').disabled=true;$(s+'Rotate').disabled=true});$('autoBtn').disabled=$('manualBtn').disabled=$('resetBtn').disabled=true;const a=$('manualApply');if(a)a.remove();state.manual=false;state.active=null;updatePrint()};
+setMode();
+</script>
+</body></html>
